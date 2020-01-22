@@ -23,7 +23,9 @@ DEFAULT_RETRY_ENUM = 5  # '--retry-enum'
 DEFAULT_RECONNECT = 3  # '--reconnect'
 
 DEFAULT_MODE = "VRFY"
-SUPPORTED_MODES = ["VRFY", "EXPN"]
+SUPPORTED_MODES = ["VRFY", "EXPN", "RCPT"]
+
+DEFAULT_MAIL_FROM = "user@example.com"
 
 
 # -------------------------------------------------------------------------------------------------
@@ -79,7 +81,7 @@ def get_users_from_wordlist(filepath):
 # -------------------------------------------------------------------------------------------------
 
 
-def enum_users(s, mode, users, reconnect, retry, timeout, debug, conn):
+def enum_users(s, mode, users, domain, reconnect, retry, timeout, verbose, conn):
     """Enumerate users on SMTP server."""
     longest = len(max(users, key=len))
 
@@ -87,7 +89,7 @@ def enum_users(s, mode, users, reconnect, retry, timeout, debug, conn):
         failure = False
         message = ""
 
-        if not debug:
+        if not verbose:
             print("\033[93m[TEST] {} ...\033[00m".format(user), end="\r")
             sys.stdout.flush()
 
@@ -97,12 +99,17 @@ def enum_users(s, mode, users, reconnect, retry, timeout, debug, conn):
 
             # Send MODE command with retry
             for i in range(1, retry + 1):
-                command = mode + " " + user
+                if mode == "RCPT":
+                    command = "RCPT TO:" + user
+                else:
+                    command = mode + " " + user
+                if domain is not None:
+                    command += "@" + domain
                 output(
                     "[Reconn {}/{}] [Retry {}/{}] Testing: {} ...".format(
                         j, reconnect, i, retry, command
                     ),
-                    debug,
+                    verbose,
                 )
                 succ, err = send(s, command)
                 if succ:
@@ -112,7 +119,13 @@ def enum_users(s, mode, users, reconnect, retry, timeout, debug, conn):
                 failure = True
                 message = err
                 s = init_connection(
-                    conn["host"], conn["port"], conn["retry"], conn["timeout"], debug
+                    conn["host"],
+                    conn["port"],
+                    mode,
+                    conn["from_mail"],
+                    conn["retry"],
+                    conn["timeout"],
+                    verbose,
                 )
                 continue
 
@@ -122,7 +135,7 @@ def enum_users(s, mode, users, reconnect, retry, timeout, debug, conn):
                     "[Reconn {}/{}] [Retry {}/{}] Waiting for answer ...".format(
                         j, reconnect, i, retry
                     ),
-                    debug,
+                    verbose,
                 )
                 succ, reply = receive(s, timeout)
                 if succ:
@@ -132,7 +145,13 @@ def enum_users(s, mode, users, reconnect, retry, timeout, debug, conn):
                 failure = True
                 message = reply
                 s = init_connection(
-                    conn["host"], conn["port"], conn["retry"], conn["timeout"], debug
+                    conn["host"],
+                    conn["port"],
+                    mode,
+                    conn["from_mail"],
+                    conn["retry"],
+                    conn["timeout"],
+                    verbose,
                 )
                 continue
 
@@ -151,11 +170,11 @@ def enum_users(s, mode, users, reconnect, retry, timeout, debug, conn):
             print("\033[91m[----] {}{}\033[00m{}".format(user, " " * padding, reply))
 
 
-def init_connection(host, port, retry, timeout, debug):
+def init_connection(host, port, mode, from_mail, retry, timeout, verbose):
     """Initialize SMTP connection."""
     # Connect with retry
     for i in range(1, retry + 1):
-        output("[{}/{}] Connecting to {}:{} ...".format(i, retry, host, port), debug)
+        output("[{}/{}] Connecting to {}:{} ...".format(i, retry, host, port), verbose)
         s, err = connect(host, port)
         if s is not None:
             break
@@ -165,7 +184,7 @@ def init_connection(host, port, retry, timeout, debug):
 
     # Receive banner with retry
     for i in range(1, retry + 1):
-        output("[{}/{}] Waiting for banner ...".format(i, retry), debug)
+        output("[{}/{}] Waiting for banner ...".format(i, retry), verbose)
         succ, banner = receive(s, timeout)
         if succ:
             break
@@ -177,8 +196,9 @@ def init_connection(host, port, retry, timeout, debug):
 
     # Send greeting with retry
     for i in range(1, retry + 1):
-        output("[{}/{}] Sending greeting ...".format(i, retry), debug)
-        succ, err = send(s, "HELO test")
+        command = "HELO test"
+        output("[{}/{}] Sending greeting: {}".format(i, retry, command), verbose)
+        succ, err = send(s, command)
         if succ:
             break
     if not succ:
@@ -188,7 +208,7 @@ def init_connection(host, port, retry, timeout, debug):
 
     # Waiting for greeting with rety
     for i in range(1, retry + 1):
-        output("[{}/{}] Waiting for greeting ...".format(i, retry), debug)
+        output("[{}/{}] Waiting for greeting reply ...".format(i, retry), verbose)
         succ, greeting = receive(s, timeout)
         if succ:
             break
@@ -197,6 +217,31 @@ def init_connection(host, port, retry, timeout, debug):
         print(greeting, file=sys.stderr)
         sys.exit(1)
     print("%s" % (greeting))
+
+    # In RCPT mode, we need to ensure to issue a
+    # MAIL FROM: <user>[@<domain>] first and verify a successful anwer
+    # as such: 250 2.1.0 <user>[@domain>]... Sender OK
+    if mode == "RCPT":
+        # Send MAIL FROM:
+        for i in range(1, retry + 1):
+            command = "MAIL FROM: " + from_mail
+            output("[{}/{}] Sending: {}".format(i, retry, command), verbose)
+            succ, err = send(s, command)
+            if succ:
+                break
+        # Waiting for answer
+        for i in range(1, retry + 1):
+            output("[{}/{}] Waiting for MAIL FROM reply ...".format(i, retry), verbose)
+            succ, reply = receive(s, timeout)
+            if succ and not reply.startswith("250"):
+                output(reply, verbose)
+            if succ and reply.startswith("250"):
+                break
+        if not succ or not reply.startswith("250"):
+            s.close()
+            print(reply, file=sys.stderr)
+            sys.exit(1)
+        print("%s" % (reply))
 
     return s
 
@@ -336,7 +381,7 @@ automatically and transparently reconnect and continue from where it left off.
         "-v",
         "--version",
         action="version",
-        version="%(prog)s 0.2.0 by cytopia",
+        version="%(prog)s 0.3.0 by cytopia",
         help="Show version information,",
     )
     parser.add_argument(
@@ -353,11 +398,22 @@ automatically and transparently reconnect and continue from where it left off.
     )
     parser.add_argument(
         "-d",
-        "--debug",
-        action="store_true",
+        "--domain",
+        metavar="addr",
         required=False,
-        default=False,
-        help="Show debug output. Useful to adjust your timing and retry settings.",
+        type=str,
+        help="""Domain to append to users to convert into email addresses.
+Useful of you see this response: '550 A valid address is required'
+Default: Nothing appended""",
+    )
+    parser.add_argument(
+        "-f",
+        "--from-mail",
+        metavar="addr",
+        required=False,
+        default=DEFAULT_MAIL_FROM,
+        type=str,
+        help="MAIL FROM email address. Only used in RCPT mode" + "\nDefault: " + DEFAULT_MAIL_FROM,
     )
     user = parser.add_mutually_exclusive_group(required=True)
     user.add_argument(
@@ -370,6 +426,14 @@ automatically and transparently reconnect and continue from where it left off.
         required=False,
         type=_args_check_file,
         help="Newline separated wordlist of users to test.",
+    )
+    parser.add_argument(
+        "-V",
+        "--verbose",
+        action="store_true",
+        required=False,
+        default=False,
+        help="Show verbose output. Useful to adjust your timing and retry settings.",
     )
     parser.add_argument(
         "--timeout-init",
@@ -441,20 +505,30 @@ def main():
         users = get_users_from_wordlist(args.file)
 
     print("Connecting to %s %s ..." % (args.host, args.port))
-    s = init_connection(args.host, args.port, args.retry_init, args.timeout_init, args.debug)
+    s = init_connection(
+        args.host,
+        args.port,
+        args.mode,
+        args.from_mail,
+        args.retry_init,
+        args.timeout_init,
+        args.verbose,
+    )
 
     print("Start enumerating users with %s mode ..." % args.mode)
     enum_users(
         s,
         args.mode,
         users,
+        args.domain,
         args.reconnect,
         args.retry_enum,
         args.timeout_enum,
-        args.debug,
+        args.verbose,
         {
             "host": args.host,
             "port": args.port,
+            "from": args.from_mail,
             "retry": args.retry_init,
             "timeout": args.timeout_init,
         },

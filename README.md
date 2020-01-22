@@ -10,7 +10,7 @@
 
 [![Build Status](https://github.com/cytopia/smtp-user-enum/workflows/linting/badge.svg)](https://github.com/cytopia/smtp-user-enum/actions?workflow=linting)
 
-SMTP user enumeration via `VRFY` and `EXPN` with clever timeout, retry and reconnect functionality.
+SMTP user enumeration via `VRFY`, `EXPN` and `RCPT` with clever timeout, retry and reconnect functionality.
 
 Some SMTP server take a long time for initial communication (banner and greeting) and then
 handle subsequent commands quite fast. Then again they randomly start to get slow again.
@@ -24,6 +24,9 @@ Additionally if it encounters anything like `421 Too many errors on this connect
 automatically and transparently reconnect and continue from where it left off.
 
 
+> Inspired by [smtp-user-enum](http://pentestmonkey.net/tools/user-enumeration/smtp-user-enum) Perl script and rewritten in Python with full Python2 and Python3 support.
+
+
 ## Installation
 ```bash
 pip install smtp-user-enum
@@ -34,10 +37,6 @@ pip install smtp-user-enum
 
 ```bash
 $ smtp-user-enum --help
-
-usage: smtp-user-enum [options] -u/-U host port
-       smtp-user-enum --help
-       smtp-user-enum --version
 
 SMTP user enumeration tool with clever timeout, retry and reconnect functionality.
 
@@ -52,7 +51,6 @@ according to your needs.
 Additionally if it encounters anything like '421 Too many errors on this connection' it will
 automatically and transparently reconnect and continue from where it left off.
 
-
 positional arguments:
   host                  IP or hostname to connect to.
   port                  Port to connect to.
@@ -61,11 +59,18 @@ optional arguments:
   -h, --help            show this help message and exit
   -v, --version         Show version information,
   -m mode, --mode mode  Mode to enumerate SMTP users.
-                        Supported modes: VRFY, EXPN
+                        Supported modes: VRFY, EXPN, RCPT
                         Default: VRFY
-  -d, --debug           Show debug output. Useful to adjust your timing and retry settings.
+  -d addr, --domain addr
+                        Domain to append to users to convert into email addresses.
+                        Useful of you see this response: '550 A valid address is required'
+                        Default: Nothing appended
+  -f addr, --from-mail addr
+                        MAIL FROM email address. Only used in RCPT mode
+                        Default: user@example.com
   -u user, --user user  Username to test.
   -U file, --file file  Newline separated wordlist of users to test.
+  -V, --verbose         Show verbose output. Useful to adjust your timing and retry settings.
   --timeout-init sec    Timeout for initial communication (connect, banner and greeting).
                         Default: 25
   --timeout-enum sec    Timeout for user enumeration.
@@ -176,6 +181,119 @@ Start enumerating users with EXPN mode ...
 [----] bbs               502 Unimplemented command.
 [----] bin               502 Unimplemented command.
 ```
+
+## RCPT mode
+
+### Successful RCPT mode output
+
+```bash
+$ smtp-user-enum -m RCPT -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+
+Connecting to mail.example.tld 25 ...
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
+250 mail.example.tld Hello [10.0.0.1], pleased to meet you
+250 2.1.0 user@example.com... Sender ok
+Start enumerating users with RCPT mode ...
+[----] OutOfBox          550 5.1.1 OutOfBox... User unknown
+[SUCC] root              250 2.1.5 root... Recipient ok
+[SUCC] adm               250 2.1.5 adm... Recipient ok
+[----] admin             550 5.1.1 admin... User unknown
+[----] administrator     550 5.1.1 administrator... User unknown
+[----] backup            550 5.1.1 backup... User unknown
+[----] bbs               550 5.1.1 bbs... User unknown
+[SUCC] bin               250 2.1.5 bin... Recipient ok
+[----] checkfs           550 5.1.1 checkfs... User unknown
+[----] checksys          550 5.1.1 checksys... User unknown
+```
+
+### Troubleshooting EXPN mode
+
+```bash
+$ smtp-user-enum -m RCPT -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+
+Connecting to mail.example.tld 25 ...
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
+250 mail.example.tld Hello [10.0.0.1], pleased to meet you
+250 2.1.0 user@example.com... Sender ok
+Start enumerating users with RCPT mode ...
+[----] 4Dgifts           550 A valid address is required.
+[----] EZsetup           550 A valid address is required.
+[----] OutOfBox          550 A valid address is required.
+[----] root              550 A valid address is required.
+[----] adm               550 A valid address is required.
+```
+
+By the above output you can see that pure usernames are not allowed to be specified,
+this can be counteracted with the `-d` command, to append a domain to each username during enumeration:
+
+```bash
+$ smtp-user-enum -m RCPT -d 'example.com' -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+
+Connecting to mail.example.tld 25 ...
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
+250 mail.example.tld Hello [10.0.0.1], pleased to meet you
+250 2.1.0 user@example.com... Sender ok
+Start enumerating users with RCPT mode ...
+[----] 4Dgifts           450 4.7.1 4Dgifts@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.11.0.226
+[----] EZsetup           450 4.7.1 EZsetup@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.11.0.226
+[----] OutOfBox          450 4.7.1 OutOfBox@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.11.0.226
+[----] root              450 4.7.1 root@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.11.0.226
+[----] adm               450 4.7.1 adm@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.11.0.226
+```
+
+Looks like the server is also hardened against relaying. To circumvent this, you could try to specify the server's hostname (cann be seen in the banner or greeting) or use `127.0.0.1` as the domain for users:
+
+```bash
+$ smtp-user-enum -m RCPT -d '127.0.0.1' -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+
+Connecting to mail.example.tld 25 ...
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
+250 mail.example.tld Hello [10.0.0.1], pleased to meet you
+250 2.1.0 user@example.com... Sender ok
+Start enumerating users with RCPT mode ...
+[SUCC] 4Dgifts           250 2.1.5 4Dgifts@127.0.0.1... Recipient ok (will queue)
+[SUCC] EZsetup           250 2.1.5 EZsetup@127.0.0.1... Recipient ok (will queue)
+[SUCC] OutOfBox          250 2.1.5 OutOfBox@127.0.0.1... Recipient ok (will queue)
+[SUCC] root              250 2.1.5 root@127.0.0.1... Recipient ok (will queue)
+[SUCC] adm               250 2.1.5 adm@127.0.0.1... Recipient ok (will queue)
+[SUCC] admin             250 2.1.5 admin@127.0.0.1... Recipient ok (will queue)
+[SUCC] administrator     250 2.1.5 administrator@127.0.0.1... Recipient ok (will queue)
+[SUCC] anon              250 2.1.5 anon@127.0.0.1... Recipient ok (will queue)
+[SUCC] auditor           250 2.1.5 auditor@127.0.0.1... Recipient ok (will queue)
+[SUCC] backup            250 2.1.5 backup@127.0.0.1... Recipient ok (will queue)
+```
+
+Looks like `127.0.0.1` as the user's domain leads to false positives, let's try the exact domain speified in the banner `mail.example.tld`:
+
+```bash
+$ smtp-user-enum -m RCPT -d '127.0.0.1' -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+
+Connecting to mail.example.tld 25 ...
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
+250 mail.example.tld Hello [10.0.0.1], pleased to meet you
+250 2.1.0 user@example.com... Sender ok
+Start enumerating users with RCPT mode ...
+[----] 4Dgifts           550 5.1.1 4Dgifts@mail.example.tld... User unknown
+[----] EZsetup           550 5.1.1 EZsetup@mail.example.tld... User unknown
+[----] OutOfBox          550 5.1.1 OutOfBox@mail.example.tld... User unknown
+[SUCC] ROOT              250 2.1.5 ROOT@mail.example.tld... Recipient ok
+[SUCC] adm               250 2.1.5 adm@mail.example.tld... Recipient ok
+[----] admin             550 5.1.1 admin@mail.example.tld... User unknown
+[----] administrator     550 5.1.1 administrator@mail.example.tld... User unknown
+[----] anon              550 5.1.1 anon@mail.example.tld... User unknown
+[----] auditor           550 5.1.1 auditor@mail.example.tld... User unknown
+[----] avahi             550 5.1.1 avahi@mail.example.tld... User unknown
+[----] avahi-autoipd     550 5.1.1 avahi-autoipd@mail.example.tld... User unknown
+[----] backup            550 5.1.1 backup@mail.example.tld... User unknown
+[----] bbs               550 5.1.1 bbs@mail.example.tld... User unknown
+[SUCC] bin               250 2.1.5 bin@mail.example.tld... Recipient ok
+[----] checkfs           550 5.1.1 checkfs@mail.example.tld... User unknown
+```
+
+
+## Disclaimer
+
+This tool may be used for legal purposes only. Users take full responsibility for any actions performed using this tool. The author accepts no liability for damage caused by this tool. If these terms are not acceptable to you, then do not use this tool.
 
 
 ## License
