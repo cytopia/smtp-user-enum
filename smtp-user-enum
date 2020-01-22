@@ -23,7 +23,7 @@ DEFAULT_RETRY_ENUM = 5  # '--retry-enum'
 DEFAULT_RECONNECT = 3  # '--reconnect'
 
 DEFAULT_MODE = "VRFY"
-SUPPORTED_MODES = ["VRFY"]
+SUPPORTED_MODES = ["VRFY", "EXPN"]
 
 
 # -------------------------------------------------------------------------------------------------
@@ -79,8 +79,10 @@ def get_users_from_wordlist(filepath):
 # -------------------------------------------------------------------------------------------------
 
 
-def enum_users_vrfy(s, users, reconnect, retry, timeout, debug, conn):
+def enum_users(s, mode, users, reconnect, retry, timeout, debug, conn):
     """Enumerate users on SMTP server."""
+    longest = len(max(users, key=len))
+
     for user in users:
         failure = False
         message = ""
@@ -93,15 +95,16 @@ def enum_users_vrfy(s, users, reconnect, retry, timeout, debug, conn):
         for j in range(1, reconnect + 1):
             failure = False
 
-            # Send VRFY command with retry
+            # Send MODE command with retry
             for i in range(1, retry + 1):
+                command = mode + " " + user
                 output(
                     "[Reconn {}/{}] [Retry {}/{}] Testing: {} ...".format(
-                        j, reconnect, i, retry, user
+                        j, reconnect, i, retry, command
                     ),
                     debug,
                 )
-                succ, err = send(s, "VRFY " + user)
+                succ, err = send(s, command)
                 if succ:
                     break
             if not succ:
@@ -141,10 +144,11 @@ def enum_users_vrfy(s, users, reconnect, retry, timeout, debug, conn):
             print(message, file=sys.stderr)
             sys.exit(1)
 
+        padding = longest - len(user) + 1
         if reply.startswith("250 "):
-            print("\033[92m[SUCC] {}\033[00m".format(reply))
+            print("\033[92m[SUCC] {}{}\033[00m{}".format(user, " " * padding, reply))
         else:
-            print("\033[91m[----] {}\033[00m".format(reply))
+            print("\033[91m[----] {}{}\033[00m{}".format(user, " " * padding, reply))
 
 
 def init_connection(host, port, retry, timeout, debug):
@@ -291,7 +295,7 @@ def _args_check_mode(value):
     strval = value
     if strval not in SUPPORTED_MODES:
         raise argparse.ArgumentTypeError(
-            'Invalid mode "%s". Supported: %s' % (value, ",".join(SUPPORTED_MODES))
+            'Invalid mode "%s". Supported: %s' % (value, ", ".join(SUPPORTED_MODES))
         )
     return strval
 
@@ -323,13 +327,16 @@ This implementation of SMTP user enumeration counteracts with granular timeout, 
 reconnect options for initial communication and enumeration separately.
 The defaults should work fine, however if you encounter slow enumeration, adjust the settings
 according to your needs.
+
+Additionally if it encounters anything like '421 Too many errors on this connection' it will
+automatically and transparently reconnect and continue from where it left off.
 """,
     )
     parser.add_argument(
         "-v",
         "--version",
         action="version",
-        version="%(prog)s 0.1.0 by cytopia",
+        version="%(prog)s 0.2.0 by cytopia",
         help="Show version information,",
     )
     parser.add_argument(
@@ -340,7 +347,7 @@ according to your needs.
         default=DEFAULT_MODE,
         type=_args_check_mode,
         help="Mode to enumerate SMTP users.\nSupported modes: "
-        + ",".join(SUPPORTED_MODES)
+        + ", ".join(SUPPORTED_MODES)
         + "\nDefault: "
         + DEFAULT_MODE,
     )
@@ -436,23 +443,22 @@ def main():
     print("Connecting to %s %s ..." % (args.host, args.port))
     s = init_connection(args.host, args.port, args.retry_init, args.timeout_init, args.debug)
 
-    if args.mode == "VRFY":
-        print("Start enumerating users with VRFY mode ...")
-        enum_users_vrfy(
-            s,
-            users,
-            args.mode,
-            args.reconnect,
-            args.retry_enum,
-            args.timeout_enum,
-            args.debug,
-            {
-                "host": args.host,
-                "port": args.port,
-                "retry": args.retry_init,
-                "timeout": args.timeout_init,
-            },
-        )
+    print("Start enumerating users with %s mode ..." % args.mode)
+    enum_users(
+        s,
+        args.mode,
+        users,
+        args.reconnect,
+        args.retry_enum,
+        args.timeout_enum,
+        args.debug,
+        {
+            "host": args.host,
+            "port": args.port,
+            "retry": args.retry_init,
+            "timeout": args.timeout_init,
+        },
+    )
 
 
 if __name__ == "__main__":

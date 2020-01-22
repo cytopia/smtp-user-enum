@@ -10,7 +10,7 @@
 
 [![Build Status](https://github.com/cytopia/smtp-user-enum/workflows/linting/badge.svg)](https://github.com/cytopia/smtp-user-enum/actions?workflow=linting)
 
-SMTP user enumeration tool with clever timeout, retry and reconnect functionality.
+SMTP user enumeration via `VRFY` and `EXPN` with clever timeout, retry and reconnect functionality.
 
 Some SMTP server take a long time for initial communication (banner and greeting) and then
 handle subsequent commands quite fast. Then again they randomly start to get slow again.
@@ -19,6 +19,9 @@ This implementation of SMTP user enumeration counteracts with granular timeout, 
 reconnect options for initial communication and enumeration separately.
 The defaults should work fine, however if you encounter slow enumeration, adjust the settings
 according to your needs.
+
+Additionally if it encounters anything like `421 Too many errors on this connection` it will
+automatically and transparently reconnect and continue from where it left off.
 
 
 ## Installation
@@ -46,6 +49,10 @@ reconnect options for initial communication and enumeration separately.
 The defaults should work fine, however if you encounter slow enumeration, adjust the settings
 according to your needs.
 
+Additionally if it encounters anything like '421 Too many errors on this connection' it will
+automatically and transparently reconnect and continue from where it left off.
+
+
 positional arguments:
   host                  IP or hostname to connect to.
   port                  Port to connect to.
@@ -54,7 +61,7 @@ optional arguments:
   -h, --help            show this help message and exit
   -v, --version         Show version information,
   -m mode, --mode mode  Mode to enumerate SMTP users.
-                        Supported modes: VRFY
+                        Supported modes: VRFY, EXPN
                         Default: VRFY
   -d, --debug           Show debug output. Useful to adjust your timing and retry settings.
   -u user, --user user  Username to test.
@@ -72,11 +79,13 @@ optional arguments:
 ```
 
 
-## Examples
+## VRFY mode (default)
 
-**Note:** Output is colorized but cannot be displayed via markdown.
+> The SMTP "VRFY" command allows you to verify whether a the system can deliver mail to a particular user.
+>
+> Source: https://www.rapid7.com/db/vulnerabilities/smtp-general-vrfy
 
-### Quiet output
+### Successful VRFY mode output
 
 ```bash
 $ smtp-user-enum -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
@@ -84,96 +93,88 @@ $ smtp-user-enum -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.
 Connecting to mail.example.tld 25 ...
 220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
 250 mail.example.tld Hello [10.0.0.1], pleased to meet you
-Start enumerating users ...
-[----] 501 5.5.2 Argument required
-[----] 550 5.1.1 4Dgifts... User unknown
-[----] 550 5.1.1 EZsetup... User unknown
-[----] 550 5.1.1 OutOfBox... User unknown
-[SUCC] 250 2.1.5 root <root@mail.example.tld>
-[SUCC] 250 2.1.5 <adm@mail.example.tld>
-[----] 550 5.1.1 admin... User unknown
-[----] 550 5.1.1 administrator... User unknown
-[----] 550 5.1.1 anon... User unknown
-[----] 550 5.1.1 auditor... User unknown
-[----] 550 5.1.1 avahi... User unknown
-[----] 550 5.1.1 avahi-autoipd... User unknown
-[----] 550 5.1.1 backup... User unknown
-[----] 550 5.1.1 bbs... User unknown
+Start enumerating users with VRFY mode ...
+[----] admin             550 5.1.1 admin... User unknown
+[----] OutOfBox          550 5.1.1 OutOfBox... User unknown
+[SUCC] root              250 2.1.5 root <root@mail.example.tld>
+[SUCC] adm               250 2.1.5 <adm@mail.example.tld>
+[----] avahi-autoipd     550 5.1.1 avahi-autoipd... User unknown
+[----] backup            550 5.1.1 backup... User unknown
 [TEST] bin ...
 ```
 
-### Verbose output
+### Failed VRFY mode output
+
+In case the VRFY mode is not successful as shown below, you will need to try out a different mode.
 
 ```bash
 $ smtp-user-enum -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
 
 Connecting to mail.example.tld 25 ...
-[1/4] Connecting to mail.example.tld:25 ...
-[1/4] Waiting for banner...
-[2/4] Waiting for banner...
-220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:25:58 +0200
-[1/4] Sending greeting...
-[1/4] Waiting for greeting...
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
 250 mail.example.tld Hello [10.0.0.1], pleased to meet you
-Start enumerating users ...
-[Reconn 1/3] [Retry 1/5] Testing:  ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 501 5.5.2 Argument required
-[Reconn 1/3] [Retry 1/5] Testing: 4Dgifts ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 550 5.1.1 4Dgifts... User unknown
-[Reconn 1/3] [Retry 1/5] Testing: EZsetup ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 550 5.1.1 EZsetup... User unknown
-[Reconn 1/3] [Retry 1/5] Testing: OutOfBox ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 550 5.1.1 OutOfBox... User unknown
-[Reconn 1/3] [Retry 1/5] Testing: ROOT ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[SUCC] 250 2.1.5 root <root@mail.example.tld>
-[Reconn 1/3] [Retry 1/5] Testing: adm ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[SUCC] 250 2.1.5 <adm@mail.example.tld>
-[Reconn 1/3] [Retry 1/5] Testing: admin ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 550 5.1.1 admin... User unknown
-[Reconn 1/3] [Retry 1/5] Testing: administrator ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 550 5.1.1 administrator... User unknown
-[Reconn 1/3] [Retry 1/5] Testing: anon ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 550 5.1.1 anon... User unknown
-[Reconn 1/3] [Retry 1/5] Testing: auditor ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 550 5.1.1 auditor... User unknown
-[Reconn 1/3] [Retry 1/5] Testing: avahi ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 550 5.1.1 avahi... User unknown
-[Reconn 1/3] [Retry 1/5] Testing: avahi-autoipd ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 550 5.1.1 avahi-autoipd... User unknown
-[Reconn 1/3] [Retry 1/5] Testing: backup ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 550 5.1.1 backup... User unknown
-[Reconn 1/3] [Retry 1/5] Testing: bbs ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[----] 550 5.1.1 bbs... User unknown
-[Reconn 1/3] [Retry 1/5] Testing: bin ...
-[Reconn 1/3] [Retry 1/5] Waiting for answer...
-[Reconn 1/3] [Retry 2/5] Waiting for answer...
-[Reconn 1/3] [Retry 3/5] Waiting for answer...
-[Reconn 1/3] [Retry 4/5] Waiting for answer...
-[Reconn 1/3] [Retry 5/5] Waiting for answer...
-[1/4] Connecting to mail.example.tld:25 ...
-[1/4] Waiting for banner...
-[2/4] Waiting for banner...
-220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:27:34 +0200
-[1/4] Sending greeting...
-[1/4] Waiting for greeting...
+Start enumerating users with VRFY mode ...
+[----] 4Dgifts           502 VRFY disallowed.
+[----] EZsetup           502 VRFY disallowed.
+[----] OutOfBox          502 VRFY disallowed.
+[----] root              502 VRFY disallowed.
+[----] adm               502 VRFY disallowed.
+[----] admin             502 VRFY disallowed.
+[----] administrator     502 VRFY disallowed.
+[----] anon              502 VRFY disallowed.
+```
+
+
+## EXPN mode
+
+> The SMTP "EXPN" command allows you to expand a mailing list or alias, to see where mail addressed to the alias actually goes. For example, many organizations alias postmaster to root, so that mail addressed to postmaster will get delivered to the system administrator. Issuing "EXPN postmaster" via SMTP would reveal that postmaster is aliased to root.
+>
+> The "EXPN" command can be used by attackers to learn about valid usernames on the target system. On some SMTP servers, EXPN can be used to show the subscribers of a mailing list -- subscription lists are generally considered to be sensitive information.
+>
+> Source: https://www.rapid7.com/db/vulnerabilities/smtp-general-expn
+
+### Successful EXPN mode output
+
+```bash
+$ smtp-user-enum -m EXPN -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+
+Connecting to mail.example.tld 25 ...
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
 250 mail.example.tld Hello [10.0.0.1], pleased to meet you
-[Reconn 2/3] [Retry 1/5] Testing: bin ...
-[Reconn 2/3] [Retry 1/5] Waiting for answer...
-[SUCC] 250 2.1.5 <bin@mail.example.tld>
+Start enumerating users with EXPN mode ...
+[----] 4Dgifts           550 5.1.1 4Dgifts... User unknown
+[----] EZsetup           550 5.1.1 EZsetup... User unknown
+[----] OutOfBox          550 5.1.1 OutOfBox... User unknown
+[SUCC] root              250 2.1.5 root <root@barry>
+[SUCC] adm               250 2.1.5 root <root@barry>
+[----] admin             550 5.1.1 admin... User unknown
+[----] administrator     550 5.1.1 administrator... User unknown
+[----] anon              550 5.1.1 anon... User unknown
+[----] auditor           550 5.1.1 auditor... User unknown
+```
+
+**Note:** the right side shows to what mailbox the email will be forwarded for the alias.
+
+### Failed EXPN mode output
+
+In case the EXPN mode is not successful as shown below, you will need to try out a different mode.
+
+```bash
+$ smtp-user-enum -m EXPN -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+
+Connecting to mail.example.tld 25 ...
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
+250 mail.example.tld Hello [10.0.0.1], pleased to meet you
+Start enumerating users with EXPN mode ...
+[----] adm               502 Unimplemented command.
+[----] admin             502 Unimplemented command.
+[----] administrator     502 Unimplemented command.
+[----] anon              502 Unimplemented command.
+[----] auditor           502 Unimplemented command.
+[----] avahi             502 Unimplemented command.
+[----] avahi-autoipd     502 Unimplemented command.
+[----] bbs               502 Unimplemented command.
+[----] bin               502 Unimplemented command.
 ```
 
 
