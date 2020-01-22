@@ -27,6 +27,20 @@ automatically and transparently reconnect and continue from where it left off.
 > Inspired by [smtp-user-enum](http://pentestmonkey.net/tools/user-enumeration/smtp-user-enum) Perl script and rewritten in Python with full Python2 and Python3 support.
 
 
+## Features
+
+* Enumerate users via `VRFY`, `EXPN` or `RCPT`
+* Find out which users are aliases via `RCPT`
+* Fully customize from email for `RCPT` mode
+* Append domains to usernames
+* Wrap usernames or emails in `<` and `>`
+* Very verbose mode
+* Very granular timing, retry and reconnect options for all phases
+* Works with Python2 and Python3
+
+See troubleshooting section for examples on how to use different options
+
+
 ## Installation
 ```bash
 pip install smtp-user-enum
@@ -37,6 +51,10 @@ pip install smtp-user-enum
 
 ```bash
 $ smtp-user-enum --help
+
+usage: smtp-user-enum [options] -u/-U host port
+       smtp-user-enum --help
+       smtp-user-enum --version
 
 SMTP user enumeration tool with clever timeout, retry and reconnect functionality.
 
@@ -63,8 +81,12 @@ optional arguments:
                         Default: VRFY
   -d addr, --domain addr
                         Domain to append to users to convert into email addresses.
-                        Useful of you see this response: '550 A valid address is required'
+                        Useful if you see this response: '550 A valid address is required'
                         Default: Nothing appended
+  -w, --wrap            Wrap the username or email address in '<' and '>' characters.
+                        Usefule if you see this response: '501 5.5.2 Syntax error in parameters or arguments'.
+                        Makes sense to combine with -d/--domain option.
+                        Default: Nothing wrapped
   -f addr, --from-mail addr
                         MAIL FROM email address. Only used in RCPT mode
                         Default: user@example.com
@@ -208,6 +230,7 @@ Start enumerating users with RCPT mode ...
 
 ### Troubleshooting EXPN mode
 
+#### 550 A valid address is required
 ```bash
 $ smtp-user-enum -m RCPT -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
 
@@ -226,6 +249,7 @@ Start enumerating users with RCPT mode ...
 By the above output you can see that pure usernames are not allowed to be specified,
 this can be counteracted with the `-d` command, to append a domain to each username during enumeration:
 
+#### 450 Relaying temporarily denied
 ```bash
 $ smtp-user-enum -m RCPT -d 'example.com' -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
 
@@ -234,15 +258,16 @@ Connecting to mail.example.tld 25 ...
 250 mail.example.tld Hello [10.0.0.1], pleased to meet you
 250 2.1.0 user@example.com... Sender ok
 Start enumerating users with RCPT mode ...
-[----] 4Dgifts           450 4.7.1 4Dgifts@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.11.0.226
-[----] EZsetup           450 4.7.1 EZsetup@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.11.0.226
-[----] OutOfBox          450 4.7.1 OutOfBox@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.11.0.226
-[----] root              450 4.7.1 root@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.11.0.226
-[----] adm               450 4.7.1 adm@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.11.0.226
+[----] 4Dgifts           450 4.7.1 4Dgifts@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.0.0.1
+[----] EZsetup           450 4.7.1 EZsetup@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.0.0.1
+[----] OutOfBox          450 4.7.1 OutOfBox@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.0.0.1
+[----] root              450 4.7.1 root@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.0.0.1
+[----] adm               450 4.7.1 adm@example.com... Relaying temporarily denied. Cannot resolve PTR record for 10.0.0.1
 ```
 
 Looks like the server is also hardened against relaying. To circumvent this, you could try to specify the server's hostname (cann be seen in the banner or greeting) or use `127.0.0.1` as the domain for users:
 
+#### False positives
 ```bash
 $ smtp-user-enum -m RCPT -d '127.0.0.1' -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
 
@@ -289,6 +314,79 @@ Start enumerating users with RCPT mode ...
 [SUCC] bin               250 2.1.5 bin@mail.example.tld... Recipient ok
 [----] checkfs           550 5.1.1 checkfs@mail.example.tld... User unknown
 ```
+
+#### Investigating timeouts
+```bash
+$ smtp-user-enum -m RCPT -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+
+Connecting to mail.example.tld 25 ...
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
+250 mail.example.tld Hello [10.0.0.1], pleased to meet you
+timed out
+```
+
+Let's add the `-V` to get some verbosity:
+
+```bash
+$ smtp-user-enum -V -m RCPT -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+Connecting to mail.example.tld 25 ...
+[1/4] Connecting to mail.example.tld:25 ...
+[1/4] Waiting for banner ...
+220 beta SMTP Server (JAMES SMTP Server 2.3.2) ready Wed, 22 Jan 2020 16:10:10 -0500 (EST)
+[1/4] Sending greeting: HELO test
+[1/4] Waiting for greeting reply ...
+250 beta Hello test (10.0.0.1 [10.0.0.1])
+[1/4] Sending: MAIL FROM: user@example.com
+[1/4] Waiting for MAIL FROM reply ...
+501 5.1.7 Syntax error in MAIL command
+[2/4] Waiting for MAIL FROM reply ...
+[3/4] Waiting for MAIL FROM reply ...
+[4/4] Waiting for MAIL FROM reply ...
+timed out
+```
+
+So apparently the mailserver does not like our command: `MAIL FROM: user@example.com`.
+To circumvent this, let's put the from email in brackets like so: `MAIL FROM: <user@example.com>` via the `-f` argument:
+
+
+```bash
+$ smtp-user-enum -f '<user@example.com>' -m RCPT -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+
+Connecting to mail.example.tld 25 ...
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
+250 mail.example.tld Hello [10.0.0.1], pleased to meet you
+250 2.1.0 Sender <user@example.com> OK
+Start enumerating users with RCPT mode ...
+[----] 4Dgifts           501 5.5.2 Syntax error in parameters or arguments
+[----] EZsetup           501 5.5.2 Syntax error in parameters or arguments
+[----] OutOfBox          501 5.5.2 Syntax error in parameters or arguments
+[----] root              501 5.5.2 Syntax error in parameters or arguments
+```
+
+Looks like the usernames also need to be wrapped in `<` and `>` to satisfy this specific mailserver. To do this, simply add the `-w` option:
+
+```bash
+$ smtp-user-enum -w -f '<user@example.com>' -m RCPT -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+
+Connecting to mail.example.tld 25 ...
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Wed, 22 Jan 2020 19:33:07 +0200
+250 mail.example.tld Hello [10.0.0.1], pleased to meet you
+250 2.1.0 Sender <user@example.com> OK
+Start enumerating users with RCPT mode ...
+[SUCC] 4Dgifts           250 2.1.5 Recipient <4Dgifts@localhost> OK
+[SUCC] EZsetup           250 2.1.5 Recipient <EZsetup@localhost> OK
+[SUCC] OutOfBox          250 2.1.5 Recipient <OutOfBox@localhost> OK
+[SUCC] root              250 2.1.5 Recipient <root@localhost> OK
+[SUCC] adm               250 2.1.5 Recipient <adm@localhost> OK
+[SUCC] admin             250 2.1.5 Recipient <admin@localhost> OK
+[SUCC] administrator     250 2.1.5 Recipient <administrator@localhost> OK
+[SUCC] anon              250 2.1.5 Recipient <anon@localhost> OK
+[SUCC] auditor           250 2.1.5 Recipient <auditor@localhost> OK
+```
+
+Unfortunately this yields to false positives again as it seems to be an open relay.
+However, lessons learned from this is to use the `-V` option in case of issues to troubleshoot what is going on.
+Maybe the open relay is another vector to hunt down.
 
 
 ## Disclaimer

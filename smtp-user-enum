@@ -81,7 +81,7 @@ def get_users_from_wordlist(filepath):
 # -------------------------------------------------------------------------------------------------
 
 
-def enum_users(s, mode, users, domain, reconnect, retry, timeout, verbose, conn):
+def enum_users(s, mode, users, domain, wrap, reconnect, retry, timeout, verbose, conn):
     """Enumerate users on SMTP server."""
     longest = len(max(users, key=len))
 
@@ -99,12 +99,19 @@ def enum_users(s, mode, users, domain, reconnect, retry, timeout, verbose, conn)
 
             # Send MODE command with retry
             for i in range(1, retry + 1):
-                if mode == "RCPT":
-                    command = "RCPT TO:" + user
-                else:
-                    command = mode + " " + user
+
+                # Configure user/mail with/without '<'/'>' wrapped
+                tmp_user = user
                 if domain is not None:
-                    command += "@" + domain
+                    tmp_user += "@" + domain
+                if wrap:
+                    tmp_user = "<" + tmp_user + ">"
+
+                if mode == "RCPT":
+                    command = "RCPT TO:" + tmp_user
+                else:
+                    command = mode + " " + tmp_user
+
                 output(
                     "[Reconn {}/{}] [Retry {}/{}] Testing: {} ...".format(
                         j, reconnect, i, retry, command
@@ -381,7 +388,7 @@ automatically and transparently reconnect and continue from where it left off.
         "-v",
         "--version",
         action="version",
-        version="%(prog)s 0.3.0 by cytopia",
+        version="%(prog)s 0.4.0 by cytopia",
         help="Show version information,",
     )
     parser.add_argument(
@@ -403,8 +410,19 @@ automatically and transparently reconnect and continue from where it left off.
         required=False,
         type=str,
         help="""Domain to append to users to convert into email addresses.
-Useful of you see this response: '550 A valid address is required'
+Useful if you see this response: '550 A valid address is required'
 Default: Nothing appended""",
+    )
+    parser.add_argument(
+        "-w",
+        "--wrap",
+        action="store_true",
+        required=False,
+        default=False,
+        help="""Wrap the username or email address in '<' and '>' characters.
+Usefule if you see this response: '501 5.5.2 Syntax error in parameters or arguments'.
+Makes sense to combine with -d/--domain option.
+Default: Nothing wrapped""",
     )
     parser.add_argument(
         "-f",
@@ -521,6 +539,7 @@ def main():
         args.mode,
         users,
         args.domain,
+        args.wrap,
         args.reconnect,
         args.retry_enum,
         args.timeout_enum,

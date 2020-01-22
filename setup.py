@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="smtp-user-enum",
-    version="0.3.0",
+    version="0.4.0",
     description="SMTP user enumeration tool with clever timeout, retry and reconnect functionality.",
     license="MIT",
     long_description=long_description,
