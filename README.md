@@ -155,7 +155,7 @@ HELO test
 VRFY someuser
 550 5.1.1 someuser... User unknown
 VRFY bob
-250 2.1.5 <bob@tophat.acme.com>
+250 2.1.5 <bob@mail.example.tld>
 ```
 
 As can be seen `VRFY someuser` tells us it does not exist whereas `VRFY bob` yields a positive result.
