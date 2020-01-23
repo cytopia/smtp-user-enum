@@ -26,6 +26,42 @@ automatically and transparently reconnect and continue from where it left off.
 
 > Inspired by [smtp-user-enum](http://pentestmonkey.net/tools/user-enumeration/smtp-user-enum) Perl script and rewritten in Python with full Python2 and Python3 support.
 
+**Table of contents**
+
+1. [Installation](#installation)
+2. [Features](#features)
+3. [Usage](#usage)
+4. [VRFY mode (default)](#vrfy-mode-default)
+    1. [How does VRFY work](#how-does-vrfy-work)
+    2. [Successful VRFY enumeration](#successful-vrfy-enumeration)
+    3. [Failed VRFY enumeration](#failed-vrfy-enumeration)
+5. [EXPN mode](#expn-mode)
+    1. [How does EXPN work](#how-does-expn-work)
+    2. [Successful EXPN enumeration](#successful-expn-enumeration)
+    3. [Failed EXPN enumeration](#failed-expn-enumeration)
+6. [RCPT mode](#rcpt-mode)
+    1. [How does RCPT work](#how-does-rcpt-work)
+    2. [Successful RCPT enumeration](#successful-rcpt-enumeration)
+    3. [Troubleshooting EXPN enumeration](#troubleshooting-expn-enumeration)
+        1. [550 A valid address is required](#550-a-valid-address-is-required)
+        2. [450 Relaying temporarily denied](#450-relaying-temporarily-denied)
+        3. [False positives](#false-positives)
+        4. [Investigating timeouts](#investigating-timeouts)
+7. [Mitigation](#mitigation)
+    1. [VRFY and EXPN](#vrfy-and-expn)
+        1. [Postfix](#postfix)
+        2. [Sendmail](#sendmail)
+        3. [Exim](#exim)
+    2. [RCPT TO](#rcpt-to)
+8. [Disclaimer](#disclaimer)
+9. [License](#license)
+
+
+## Installation
+```bash
+pip install smtp-user-enum
+```
+
 
 ## Features
 
@@ -39,12 +75,6 @@ automatically and transparently reconnect and continue from where it left off.
 * Works with Python2 and Python3
 
 See troubleshooting section for examples on how to use different options
-
-
-## Installation
-```bash
-pip install smtp-user-enum
-```
 
 
 ## Usage
@@ -112,7 +142,25 @@ optional arguments:
 >
 > Source: https://www.rapid7.com/db/vulnerabilities/smtp-general-vrfy
 
-### Successful VRFY mode output
+### How does VRFY work
+
+The `VRFY` mode can easily be tested with `nc` or `telnet` as shown below:
+```bash
+$ nc mail.example.tld 25
+```
+```
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Thu, 23 Jan 2020 16:03:22 +0200
+HELO test
+250 mail.example.tld Hello [10.0.0.1], pleased to meet you
+VRFY someuser
+550 5.1.1 someuser... User unknown
+VRFY bob
+250 2.1.5 <bob@tophat.acme.com>
+```
+
+As can be seen `VRFY someuser` tells us it does not exist whereas `VRFY bob` yields a positive result.
+
+### Successful VRFY enumeration
 
 ```bash
 $ smtp-user-enum -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
@@ -130,7 +178,7 @@ Start enumerating users with VRFY mode ...
 [TEST] bin ...
 ```
 
-### Failed VRFY mode output
+### Failed VRFY enumeration
 
 In case the VRFY mode is not successful as shown below, you will need to try out a different mode.
 
@@ -160,7 +208,28 @@ Start enumerating users with VRFY mode ...
 >
 > Source: https://www.rapid7.com/db/vulnerabilities/smtp-general-expn
 
-### Successful EXPN mode output
+### How does EXPN work
+
+The `EXPN` mode can easily be tested with `nc` or `telnet` as shown below:
+```bash
+$ nc mail.example.tld 25
+```
+```
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Thu, 23 Jan 2020 16:03:22 +0200
+HELO test
+250 mail.example.tld [10.0.0.1], pleased to meet you
+EXPN someuser
+550 5.1.1 someuser... User unknown
+EXPN bob
+250 2.1.5 <bob@mail.example.tld>
+EXPN bin
+250 2.1.5 root <root@mail.example.tld>
+```
+
+As can be seen `EXPN someuser` tells us it does not exist whereas `EXPN bob` and `EXPN bin` yield positive results. You can also see from the output that `bob` is a real user on the system, whereas
+`bin` is just an alias pointing to `root`.
+
+### Successful EXPN enumeration
 
 ```bash
 $ smtp-user-enum -m EXPN -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
@@ -182,7 +251,7 @@ Start enumerating users with EXPN mode ...
 
 **Note:** the right side shows to what mailbox the email will be forwarded for the alias.
 
-### Failed EXPN mode output
+### Failed EXPN enumeration
 
 In case the EXPN mode is not successful as shown below, you will need to try out a different mode.
 
@@ -206,7 +275,30 @@ Start enumerating users with EXPN mode ...
 
 ## RCPT mode
 
-### Successful RCPT mode output
+This is usually the most useful command to fish for usernames as `VRFY` and `EXPN` are often disabled.
+
+### How does RCPT work
+
+The `RCPT` mode can easily be tested with `nc` or `telnet` as shown below:
+```bash
+$ nc mail.example.tld 25
+```
+```
+220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Thu, 23 Jan 2020 16:03:22 +0200
+HELO test
+250 mail.example.tld [10.0.0.1], pleased to meet you
+MAIL FROM:user@example.com
+250 2.1.0 user@example.com... Sender ok
+RCPT TO:someuser
+550 5.1.1 someuser... User unknown
+RCPT TO:bob
+250 2.1.5 bob... Recipient ok
+```
+
+As can be seen `RCPT TO: someuser` tells us it does not exist whereas `RCPT TO: bob` yields a positive result.
+
+
+### Successful RCPT enumeration
 
 ```bash
 $ smtp-user-enum -m RCPT -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
@@ -228,7 +320,7 @@ Start enumerating users with RCPT mode ...
 [----] checksys          550 5.1.1 checksys... User unknown
 ```
 
-### Troubleshooting EXPN mode
+### Troubleshooting EXPN enumeration
 
 #### 550 A valid address is required
 ```bash
@@ -387,6 +479,58 @@ Start enumerating users with RCPT mode ...
 Unfortunately this yields to false positives again as it seems to be an open relay.
 However, lessons learned from this is to use the `-V` option in case of issues to troubleshoot what is going on.
 Maybe the open relay is another vector to hunt down.
+
+
+## Mitigation
+
+Now that you've seen how easy it could be to enumerate usernames on systems, you should ensure that your servers are hardened against this technique.
+
+### VRFY and EXPN
+
+#### Postfix
+
+On Postfix `VRFY` seems to be not disabled by default as shown by [their documentation](http://www.postfix.org/postconf.5.html#disable_vrfy_command). It also looks like Postfix did not implement the `EXPN` command, so only `VRFY` needs to be disabled.
+
+`main.cf`:
+```ini
+disable_vrfy_command = yes
+```
+
+#### Sendmail
+
+On Sendmail you will have to adjust the privacy settings and reload its configuration afterwards in order to disable `VRFY` and `EXPN`.
+
+`sendmail.cf`:
+```diff
+- O PrivacyOptions=
++ O PrivacyOptions=noexpn novrfy
+```
+or
+```diff
+- O PrivacyOptions=
++ O PrivacyOptions=goaway
+```
+
+#### Exim
+
+On Exim you should check if those values have already been disabled and then disable them accordingly. For the `EXPN` directive, ensure to either comment it out or set it to `localhost` only.
+
+`exim.conf`:
+```diff
+- smtp_verify = true
++ smtp_verify = false
+
+- smtp_expn_hosts = ...
++ smtp_expn_hosts = localhost
+```
+
+### RCPT TO
+
+The `RCPT TO` command cannot be disabled without breaking a mail server. What you should do instead is to require authentication:
+
+* [Postifx SASL](http://www.postfix.org/SASL_README.html)
+* [Sendmail SASL](https://www.sendmail.org/~ca/email/auth.html)
+* [Exim SASL](https://www.exim.org/exim-html-current/doc/html/spec_html/ch-the_cyrussasl_authenticator.html)
 
 
 ## Disclaimer
