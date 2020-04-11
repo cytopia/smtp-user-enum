@@ -539,13 +539,13 @@ The `RCPT TO` command cannot be disabled without breaking a mail server. What yo
 
 Below is a list of other sec tools I am maintaining.
 
-| Tool             | Category             | Language   | Description |
-|------------------|----------------------|------------|-------------|
-| [smtp-user-enum] | Enumeration          | Python 2+3 | SMTP users enumerator |
-| [urlbuster]      | Enumeration          | Python 2+3 | Mutable web directory fuzzer |
-| [netcat]         | Pivoting             | Python 2+3 | Cross-platform netcat |
-| [badchars]       | Reverse Engineering  | Python 2+3 | Badchar generator |
-| [fuzza]          | Reverse Engineering  | Python 2+3 | TCP fuzzing tool |
+| Tool                 | Category             | Language   | Description |
+|----------------------|----------------------|------------|-------------|
+| **[smtp-user-enum]** | Enumeration          | Python 2+3 | SMTP users enumerator |
+| **[urlbuster]**      | Enumeration          | Python 2+3 | Mutable web directory fuzzer |
+| **[netcat]**         | Pivoting             | Python 2+3 | Cross-platform netcat |
+| **[badchars]**       | Reverse Engineering  | Python 2+3 | Badchar generator |
+| **[fuzza]**          | Reverse Engineering  | Python 2+3 | TCP fuzzing tool |
 
 [netcat]: https://github.com/cytopia/netcat
 [smtp-user-enum]: https://github.com/cytopia/smtp-user-enum
