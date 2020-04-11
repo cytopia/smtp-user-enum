@@ -28,18 +28,18 @@ automatically and transparently reconnect and continue from where it left off.
 
 **Table of contents**
 
-1. [Installation](#installation)
-2. [Features](#features)
-3. [Usage](#usage)
-4. [VRFY mode (default)](#vrfy-mode-default)
+1. [Installation](#tada-installation)
+2. [Features](#star-features)
+3. [Usage](#computer-usage)
+4. [VRFY mode (default)](#smiling_imp-vrfy-mode-default)
     1. [How does VRFY work](#how-does-vrfy-work)
     2. [Successful VRFY enumeration](#successful-vrfy-enumeration)
     3. [Failed VRFY enumeration](#failed-vrfy-enumeration)
-5. [EXPN mode](#expn-mode)
+5. [EXPN mode](#smiling_imp-expn-mode)
     1. [How does EXPN work](#how-does-expn-work)
     2. [Successful EXPN enumeration](#successful-expn-enumeration)
     3. [Failed EXPN enumeration](#failed-expn-enumeration)
-6. [RCPT mode](#rcpt-mode)
+6. [RCPT mode](#smiling_imp-rcpt-mode)
     1. [How does RCPT work](#how-does-rcpt-work)
     2. [Successful RCPT enumeration](#successful-rcpt-enumeration)
     3. [Troubleshooting EXPN enumeration](#troubleshooting-expn-enumeration)
@@ -47,23 +47,25 @@ automatically and transparently reconnect and continue from where it left off.
         2. [450 Relaying temporarily denied](#450-relaying-temporarily-denied)
         3. [False positives](#false-positives)
         4. [Investigating timeouts](#investigating-timeouts)
-7. [Mitigation](#mitigation)
+7. [Mitigation](#cop-mitigation)
     1. [VRFY and EXPN](#vrfy-and-expn)
         1. [Postfix](#postfix)
         2. [Sendmail](#sendmail)
         3. [Exim](#exim)
     2. [RCPT TO](#rcpt-to)
-8. [Disclaimer](#disclaimer)
-9. [License](#license)
+8. [cytopia sec tools](#lock-cytopia-sec-tools)
+9. [Contributing](#octocat-contributing)
+10. [Disclaimer](#exclamation-disclaimer)
+11. [License](#page_facing_up-license)
 
 
-## Installation
+## :tada: Installation
 ```bash
 pip install smtp-user-enum
 ```
 
 
-## Features
+## :star: Features
 
 * Enumerate users via `VRFY`, `EXPN` or `RCPT`
 * Find out which users are aliases via `RCPT`
@@ -77,7 +79,7 @@ pip install smtp-user-enum
 See troubleshooting section for examples on how to use different options
 
 
-## Usage
+## :computer: Usage
 
 ```bash
 $ smtp-user-enum --help
@@ -136,7 +138,7 @@ optional arguments:
 ```
 
 
-## VRFY mode (default)
+## :smiling_imp: VRFY mode (default)
 
 > The SMTP "VRFY" command allows you to verify whether a the system can deliver mail to a particular user.
 >
@@ -200,7 +202,7 @@ Start enumerating users with VRFY mode ...
 ```
 
 
-## EXPN mode
+## :smiling_imp: EXPN mode
 
 > The SMTP "EXPN" command allows you to expand a mailing list or alias, to see where mail addressed to the alias actually goes. For example, many organizations alias postmaster to root, so that mail addressed to postmaster will get delivered to the system administrator. Issuing "EXPN postmaster" via SMTP would reveal that postmaster is aliased to root.
 >
@@ -273,7 +275,7 @@ Start enumerating users with EXPN mode ...
 [----] bin               502 Unimplemented command.
 ```
 
-## RCPT mode
+## :smiling_imp: RCPT mode
 
 This is usually the most useful command to fish for usernames as `VRFY` and `EXPN` are often disabled.
 
@@ -481,7 +483,7 @@ However, lessons learned from this is to use the `-V` option in case of issues t
 Maybe the open relay is another vector to hunt down.
 
 
-## Mitigation
+## :cop: Mitigation
 
 Now that you've seen how easy it could be to enumerate usernames on systems, you should ensure that your servers are hardened against this technique.
 
@@ -533,12 +535,36 @@ The `RCPT TO` command cannot be disabled without breaking a mail server. What yo
 * [Exim SASL](https://www.exim.org/exim-html-current/doc/html/spec_html/ch-the_cyrussasl_authenticator.html)
 
 
-## Disclaimer
+## :lock: [cytopia](https://github.com/cytopia) sec tools
+
+Below is a list of other sec tools I am maintaining.
+
+| Tool             | Category             | Language   | Description |
+|------------------|----------------------|------------|-------------|
+| [smtp-user-enum] | Enumeration          | Python 2+3 | SMTP users enumerator |
+| [urlbuster]      | Enumeration          | Python 2+3 | Mutable web directory fuzzer |
+| [netcat]         | Pivoting             | Python 2+3 | Cross-platform netcat |
+| [badchars]       | Reverse Engineering  | Python 2+3 | Badchar generator |
+| [fuzza]          | Reverse Engineering  | Python 2+3 | TCP fuzzing tool |
+
+[netcat]: https://github.com/cytopia/netcat
+[smtp-user-enum]: https://github.com/cytopia/smtp-user-enum
+[urlbuster]: https://github.com/cytopia/urlbuster
+[badchars]: https://github.com/cytopia/badchars
+[fuzza]: https://github.com/cytopia/fuzza
+
+
+## :octocat: Contributing
+
+See **[Contributing guidelines](CONTRIBUTING.md)** to help to improve this project.
+
+
+## :exclamation: Disclaimer
 
 This tool may be used for legal purposes only. Users take full responsibility for any actions performed using this tool. The author accepts no liability for damage caused by this tool. If these terms are not acceptable to you, then do not use this tool.
 
 
-## License
+## :page_facing_up: License
 
 **[MIT License](LICENSE.txt)**
 
