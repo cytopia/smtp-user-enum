@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="smtp-user-enum",
-    version="0.5.0",
+    version="0.6.0",
     description="SMTP user enumeration tool with clever timeout, retry and reconnect functionality.",
     license="MIT",
     long_description=long_description,
@@ -17,6 +17,11 @@ setup(
     scripts=[
         "smtp-user-enum"
     ],
+       project_urls={
+        'Source Code': 'https://github.com/cytopia/smtp-user-enum',
+        'Documentation': 'https://github.com/cytopia/smtp-user-enum',
+        'Bug Tracker': 'https://github.com/cytopia/smtp-user-enum/issues',
+    },
     classifiers=[
         # How mature is this project? Common values are
         #   3 - Alpha
