@@ -219,7 +219,7 @@ $ nc mail.example.tld 25
 ```
 ```
 220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Thu, 23 Jan 2020 16:03:22 +0200
-HELO changeme 
+HELO changeme
 250 mail.example.tld [10.0.0.1], pleased to meet you
 EXPN someuser
 550 5.1.1 someuser... User unknown
