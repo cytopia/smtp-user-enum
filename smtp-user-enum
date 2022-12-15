@@ -441,7 +441,7 @@ Default: Nothing wrapped""",
         required=False,
         default=DEFAULT_HELO,
         type=str,
-        help="Domain name of sending host used in HELO command.",
+        help="Domain name of sending host used in HELO command." + "\nDefault: " + DEFAULT_HELO,
     )
     user = parser.add_mutually_exclusive_group(required=True)
     user.add_argument(
