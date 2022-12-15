@@ -122,6 +122,7 @@ optional arguments:
   -f addr, --from-mail addr
                         MAIL FROM email address. Only used in RCPT mode
                         Default: user@example.com
+  -l addr, --helo addr  Domain name of sending host used in HELO command.
   -u user, --user user  Username to test.
   -U file, --file file  Newline separated wordlist of users to test.
   -V, --verbose         Show verbose output. Useful to adjust your timing and retry settings.
@@ -152,7 +153,7 @@ $ nc mail.example.tld 25
 ```
 ```
 220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Thu, 23 Jan 2020 16:03:22 +0200
-HELO test
+HELO changeme
 250 mail.example.tld Hello [10.0.0.1], pleased to meet you
 VRFY someuser
 550 5.1.1 someuser... User unknown
@@ -218,7 +219,7 @@ $ nc mail.example.tld 25
 ```
 ```
 220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Thu, 23 Jan 2020 16:03:22 +0200
-HELO test
+HELO changeme
 250 mail.example.tld [10.0.0.1], pleased to meet you
 EXPN someuser
 550 5.1.1 someuser... User unknown
@@ -287,7 +288,7 @@ $ nc mail.example.tld 25
 ```
 ```
 220 mail.example.tld ESMTP Sendmail 8.12.8/8.12.8; Thu, 23 Jan 2020 16:03:22 +0200
-HELO test
+HELO changeme
 250 mail.example.tld [10.0.0.1], pleased to meet you
 MAIL FROM:user@example.com
 250 2.1.0 user@example.com... Sender ok
@@ -422,12 +423,12 @@ timed out
 Let's add the `-V` to get some verbosity:
 
 ```bash
-$ smtp-user-enum -V -m RCPT -U /usr/share/wordlists/metasploit/unix_users.txt mail.example.tld 25
+$ smtp-user-enum -V -m RCPT -U /usr/share/wordlists/metasploit/unix_users.txt -l mydomain.com mail.example.tld 25
 Connecting to mail.example.tld 25 ...
 [1/4] Connecting to mail.example.tld:25 ...
 [1/4] Waiting for banner ...
 220 beta SMTP Server (JAMES SMTP Server 2.3.2) ready Wed, 22 Jan 2020 16:10:10 -0500 (EST)
-[1/4] Sending greeting: HELO test
+[1/4] Sending greeting: HELO mydomain.com
 [1/4] Waiting for greeting reply ...
 250 beta Hello test (10.0.0.1 [10.0.0.1])
 [1/4] Sending: MAIL FROM: user@example.com

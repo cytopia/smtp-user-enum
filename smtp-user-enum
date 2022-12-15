@@ -26,6 +26,7 @@ DEFAULT_MODE = "VRFY"
 SUPPORTED_MODES = ["VRFY", "EXPN", "RCPT"]
 
 DEFAULT_MAIL_FROM = "user@example.com"
+DEFAULT_HELO = "changeme"
 
 
 # -------------------------------------------------------------------------------------------------
@@ -177,7 +178,7 @@ def enum_users(s, mode, users, domain, wrap, reconnect, retry, timeout, verbose,
             print("\033[91m[----] {}{}\033[00m{}".format(user, " " * padding, reply))
 
 
-def init_connection(host, port, mode, from_mail, retry, timeout, verbose):
+def init_connection(host, port, mode, from_mail, helo, retry, timeout, verbose):
     """Initialize SMTP connection."""
     # Connect with retry
     for i in range(1, retry + 1):
@@ -203,7 +204,7 @@ def init_connection(host, port, mode, from_mail, retry, timeout, verbose):
 
     # Send greeting with retry
     for i in range(1, retry + 1):
-        command = "HELO test"
+        command = "HELO {}".format(helo)
         output("[{}/{}] Sending greeting: {}".format(i, retry, command), verbose)
         succ, err = send(s, command)
         if succ:
@@ -433,6 +434,15 @@ Default: Nothing wrapped""",
         type=str,
         help="MAIL FROM email address. Only used in RCPT mode" + "\nDefault: " + DEFAULT_MAIL_FROM,
     )
+    parser.add_argument(
+        "-l",
+        "--helo",
+        metavar="addr",
+        required=False,
+        default=DEFAULT_HELO,
+        type=str,
+        help="Domain name of sending host used in HELO command." + "\nDefault: " + DEFAULT_HELO,
+    )
     user = parser.add_mutually_exclusive_group(required=True)
     user.add_argument(
         "-u", "--user", metavar="user", required=False, type=str, help="Username to test."
@@ -528,6 +538,7 @@ def main():
         args.port,
         args.mode,
         args.from_mail,
+        args.helo,
         args.retry_init,
         args.timeout_init,
         args.verbose,
