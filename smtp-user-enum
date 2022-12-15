@@ -389,7 +389,7 @@ automatically and transparently reconnect and continue from where it left off.
         "-v",
         "--version",
         action="version",
-        version="%(prog)s 0.5.0 by cytopia",
+        version="%(prog)s 0.6.0 by cytopia",
         help="Show version information,",
     )
     parser.add_argument(
