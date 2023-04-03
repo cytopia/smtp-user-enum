@@ -9,6 +9,7 @@ endif
 
 
 VERSION = 2.7
+BINPATH =
 BINNAME = smtp-user-enum
 
 # -------------------------------------------------------------------------------------------------
@@ -37,6 +38,34 @@ pydocstyle:
 
 black:
 	docker run --rm -v ${PWD}:/data cytopia/black -l 100 --check --diff $(BINNAME)
+
+.PHONY: mypy
+mypy:
+	@V="$$( docker run --rm cytopia/mypy --version | head -1 )"; \
+	echo "# -------------------------------------------------------------------- #"; \
+	echo "# Check Mypy: $${V}"; \
+	echo "# -------------------------------------------------------------------- #"
+	@#
+	docker pull cytopia/mypy
+	docker run --rm $$(tty -s && echo "-it" || echo) -v ${PWD}:/data --entrypoint= cytopia/mypy sh -c ' \
+		mkdir -p /tmp \
+		&& cp $(BINPATH)$(BINNAME) /tmp/$(BINNAME).py \
+		&& mypy --config-file setup.cfg /tmp/$(BINNAME).py'
+
+.PHONY: pylint
+pylint:
+	@V="$$( docker run --rm cytopia/pylint --version | head -1 )"; \
+	echo "# -------------------------------------------------------------------- #"; \
+	echo "# Check pylint: $${V}"; \
+	echo "# -------------------------------------------------------------------- #"
+	@#
+	docker pull cytopia/pylint
+	docker run --rm $$(tty -s && echo "-it" || echo) -v $(PWD):/data --entrypoint= cytopia/pylint sh -c ' \
+		mkdir -p /tmp \
+		&& cp $(BINPATH)$(BINNAME) /tmp/$(BINNAME).py \
+		&& pylint --rcfile=setup.cfg /tmp/$(BINNAME).py'
+
+
 
 
 # -------------------------------------------------------------------------------------------------

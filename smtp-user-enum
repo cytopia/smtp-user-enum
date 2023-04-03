@@ -8,6 +8,10 @@ import socket
 import sys
 import argparse
 
+# Only used with mypy for static source code analysis
+if os.environ.get("MYPY_CHECK", False):
+    from typing import List, Any, Tuple, Union
+
 
 # -------------------------------------------------------------------------------------------------
 # GLOBALS
@@ -35,14 +39,16 @@ DEFAULT_HELO = "changeme"
 
 
 def str2b(data):
+    # type: (str) -> bytes
     """Convert string into byte type."""
     try:
         return data.encode("latin1")
     except UnicodeDecodeError:
-        return data
+        return data  # type: ignore
 
 
 def b2str(data):
+    # type: (bytes) -> str
     """Convert bytes into string type."""
     try:
         return data.decode("utf-8")
@@ -59,6 +65,7 @@ def b2str(data):
 
 
 def output(data, verbose):
+    # type: (str, bool) -> None
     """print data if verbose is enabled."""
     if verbose:
         print(data)
@@ -70,6 +77,7 @@ def output(data, verbose):
 
 
 def get_users_from_wordlist(filepath):
+    # type: (str) -> List[str]
     """Read wordlist line by line and store each line as a list entry."""
     with open(filepath) as f:
         content = f.readlines()
@@ -83,6 +91,7 @@ def get_users_from_wordlist(filepath):
 
 
 def enum_users(s, mode, users, domain, wrap, reconnect, retry, timeout, verbose, conn):
+    # type: (socket.socket, str, List[str], str, bool, bool, bool, int, bool, Any) -> None
     """Enumerate users on SMTP server."""
     longest = len(max(users, key=len))
 
@@ -181,6 +190,7 @@ def enum_users(s, mode, users, domain, wrap, reconnect, retry, timeout, verbose,
 
 
 def init_connection(host, port, mode, from_mail, helo, retry, timeout, verbose):
+    # type: (str, int, str, str, str, bool, int, bool) -> socket.socket
     """Initialize SMTP connection."""
     # Connect with retry
     for i in range(1, retry + 1):
@@ -262,40 +272,43 @@ def init_connection(host, port, mode, from_mail, helo, retry, timeout, verbose):
 
 
 def connect(host, port):
+    # type: (str, int) -> Tuple[Union[None, socket.socket], Union[None, str]]
     """Connect to remote host."""
     # Create socket
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     except socket.error as msg:
-        return (None, msg)
+        return (None, str(msg))
     # Get remote IP
     try:
         addr = socket.gethostbyname(host)
     except socket.gaierror as msg:
         s.close()
-        return (None, msg)
+        return (None, str(msg))
     # Connect
     try:
         s.connect((addr, port))
     except socket.error as msg:
         s.close()
-        return (None, msg)
+        return (None, str(msg))
 
     return (s, None)
 
 
 def send(s, data):
+    # type: (socket.socket, str) -> Tuple[bool, str]
     """Send data to socket."""
     try:
         data += "\r\n"
         s.send(str2b(data))
     except socket.error as msg:
-        return (False, msg)
+        return (False, str(msg))
 
-    return (True, None)
+    return (True, "")
 
 
 def receive(s, timeout, bufsize=1024):
+    # type: (socket.socket, int, int) -> Tuple[bool, str]
     """Read one newline terminated line from a connected socket."""
     data = ""
     size = len(data)
@@ -305,7 +318,7 @@ def receive(s, timeout, bufsize=1024):
         try:
             data += b2str(s.recv(bufsize))
         except socket.error as err:
-            return (False, err)
+            return (False, str(err))
         if not data:
             return (False, "upstream connection is gone while receiving")
         # Newline terminates the read request
@@ -331,6 +344,7 @@ def receive(s, timeout, bufsize=1024):
 
 
 def _args_check_port(value):
+    # type: (str) -> int
     """Check argument for valid port number."""
     min_port = 1
     max_port = 65535
@@ -346,6 +360,7 @@ def _args_check_port(value):
 
 
 def _args_check_mode(value):
+    # type: (str) -> str
     """Check argument for valid mode."""
     strval = value
     if strval not in SUPPORTED_MODES:
@@ -356,6 +371,7 @@ def _args_check_mode(value):
 
 
 def _args_check_file(value):
+    # type: (str) -> str
     """Check argument for existing file."""
     strval = value
     if not os.path.isfile(strval):
@@ -364,6 +380,7 @@ def _args_check_file(value):
 
 
 def get_args():
+    # type: () -> argparse.Namespace
     """Retrieve command line arguments."""
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
@@ -526,6 +543,7 @@ Default: """
 
 
 def main():
+    # type: () -> None
     """Start the program."""
     args = get_args()
 
