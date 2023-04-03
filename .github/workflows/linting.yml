@@ -22,6 +22,8 @@ jobs:
           - pycodestyle
           - pydocstyle
           - black
+          - mypy
+          - pylint
 
     name: "[ ${{ matrix.target }} ]"
     steps:
